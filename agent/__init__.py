@@ -23,7 +23,7 @@ learning_rate = 0.001
 gamma         = 0.98
 buffer_limit  = 5000
 batch_size    = 32
-max_episodes  = 2000
+max_episodes  = 5000
 t_max         = 600
 min_buffer    = 1000
 target_update = 20 # episode(s)
@@ -159,6 +159,8 @@ class ExampleAgent(Base):
         print('state:', state)
         '''
 
+        #print('state:' , state)
+
         if not isinstance(state, torch.FloatTensor):
             state = torch.from_numpy(state).float().unsqueeze(0).to(device)
 
@@ -290,8 +292,29 @@ def train(model_class, env):
             # Apply the action to the environment
             next_state, reward, done, info = env.step(action)
 
-            phi_state = (-env.state.agent.position.x - env.state.agent.position.y)
-            phi_next_state = (-env.next_state.agent.position.x - env.next_state.agent.position.y)
+            maximum1= state[1].max(1)
+            #print('max1:' , maximum1)
+            index_y = np.where(maximum1==1)
+            y = index_y[0].item()
+            maximum0 = state[1].max(0)
+            #print('max0:', maximum0)
+            index_x = np.where(maximum0==1)
+            x = index_x[0].item()
+
+            phi_state = (- x - y)
+
+            max_next1 = next_state[1].max(1)
+            index_next_y = np.where(max_next1==1)
+            next_y = index_next_y[0].item()
+
+            max_next0 = next_state[1].max(0)
+            index_next_x = np.where(max_next0==1)
+            next_x = index_next_x[0].item()
+
+            phi_next_state = (-next_x - next_y)
+
+            #phi_state = (-env.state.channel.agent.position.x - env.state.channel.agent.position.y)
+            #phi_next_state = (-env.next_state.channel.agent.position.x - env.next_state.channel.agent.position.y)
             reward_shape = gamma * (phi_next_state - phi_state)
             # Save transition to replay buffer
             memory.push(Transition(state, [action], [reward], [reward_shape], next_state, [done]))
@@ -306,9 +329,9 @@ def train(model_class, env):
 
         # Train the model if memory is sufficient
         if len(memory) > min_buffer:
-            if np.mean(rewards[print_interval:]) < 0.1:
-                print('Bad initialization. Please restart the training.')
-                exit()
+            #if np.mean(rewards[print_interval:]) < 0.1:
+                #print('Bad initialization. Please restart the training.')
+                #exit()
             for i in range(train_steps):
                 loss = optimize(model, target, memory, optimizer)
                 losses.append(loss.item())
