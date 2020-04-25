@@ -291,7 +291,7 @@ def train(model_class, env):
 
             # Apply the action to the environment
             next_state, reward, done, info = env.step(action)
-
+            
             maximum1= state[1].max(1)
             #print('max1:' , maximum1)
             index_y = np.where(maximum1==1)
@@ -330,8 +330,8 @@ def train(model_class, env):
         # Train the model if memory is sufficient
         if len(memory) > min_buffer:
             #if np.mean(rewards[print_interval:]) < 0.1:
-                #print('Bad initialization. Please restart the training.')
-                #exit()
+            #    print('Bad initialization. Please restart the training.')
+            #    exit()
             for i in range(train_steps):
                 loss = optimize(model, target, memory, optimizer)
                 losses.append(loss.item())
@@ -341,7 +341,7 @@ def train(model_class, env):
             target.load_state_dict(model.state_dict())
 
         if episode % print_interval == 0 and episode > 0:
-            print("[Episode {}]\tavg rewards : {:.3f},\tavg loss: : {:.6f},\tbuffer size : {},\tepsilon : {:.1f}%".format(
+            print("[Episode {}]\tavg rewards : {:.5f},\tavg loss: : {:.6f},\tbuffer size : {},\tepsilon : {:.1f}%".format(
                             episode, np.mean(rewards[print_interval:]), np.mean(losses[print_interval*10:]), len(memory), epsilon*100))
     return model
 
