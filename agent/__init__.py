@@ -34,7 +34,7 @@ epsilon_decay = 500
 print_interval= 20
 
 
-Transition = collections.namedtuple('Transition', ('state', 'action', 'reward', 'next_state', 'done'))
+Transition = collections.namedtuple('Transition', ('state', 'action', 'reward', 'reward_shape', 'next_state', 'done'))
 
 class ReplayBuffer():
     def __init__(self, buffer_limit=buffer_limit):
@@ -57,10 +57,11 @@ class ReplayBuffer():
         states = torch.tensor([s.state for s in sample if s is not None]).float().to(device)
         actions = torch.tensor([s.action for s in sample if s is not None]).to(device)
         rewards = torch.tensor([s.reward for s in sample if s is not None]).float().to(device)
+        rewards_shape = torch.tensor([s.reward_shape for s in sample if s is not None]).float().to(device)
         next_states = torch.tensor([s.next_state for s in sample if s is not None]).float().to(device)
         dones = torch.tensor([int(s.done[0]) for s in sample if s is not None]).float().to(device)
 
-        return states, actions, rewards, next_states, dones
+        return states, actions, rewards, rewards_shape, next_states, dones
 
     def __len__(self):
         '''
@@ -225,12 +226,13 @@ class ConvDQN(DQN):
         )
         super().construct()
 
-def compute_loss(model, target, states, actions, rewards, next_states, dones):
+def compute_loss(model, target, states, actions, rewards, rewards_shape, next_states, dones):
 
     target_val = target.forward(next_states).max(1)[0].unsqueeze(1)
 
     terminal_states = dones.unsqueeze(1)
-    target_val = rewards + (target_val *  (1  - terminal_states)) * gamma
+
+    target_val = rewards + rewards_shape + (target_val *  (1  - terminal_states)) * gamma
 
     model_val = model.forward(states)
     model_val = torch.gather(model_val, 1, actions)
@@ -273,6 +275,7 @@ def train(model_class, env):
     # Initialize rewards, losses, and optimizer
     rewards = []
     losses = []
+
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     for episode in range(max_episodes):
@@ -287,20 +290,25 @@ def train(model_class, env):
             # Apply the action to the environment
             next_state, reward, done, info = env.step(action)
 
+            phi_state = (-env.state.agent.position.x - env.state.agent.position.y)
+            phi_next_state = (-env.next_state.agent.position.x - env.next_state.agent.position.y)
+            reward_shape = gamma * (phi_next_state - phi_state)
             # Save transition to replay buffer
-            memory.push(Transition(state, [action], [reward], next_state, [done]))
+            memory.push(Transition(state, [action], [reward], [reward_shape], next_state, [done]))
 
             state = next_state
             episode_rewards += reward
+
             if done:
                 break
+
         rewards.append(episode_rewards)
 
         # Train the model if memory is sufficient
         if len(memory) > min_buffer:
-            #if np.mean(rewards[print_interval:]) < 0.1:
-                #print('Bad initialization. Please restart the training.')
-                #exit()
+            if np.mean(rewards[print_interval:]) < 0.1:
+                print('Bad initialization. Please restart the training.')
+                exit()
             for i in range(train_steps):
                 loss = optimize(model, target, memory, optimizer)
                 losses.append(loss.item())
